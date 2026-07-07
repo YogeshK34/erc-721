@@ -311,6 +311,8 @@ export const ABI = [
 		"stateMutability": "payable",
 		"type": "function"
 	}
-];
+]
 
-export const CONTRACT_ADDRESS = '0xD98CaDD05850484b3F0B13B9B04f3e184EA2B997';
+export const CONTRACT_ADDRESS = '0xd853ea6234BEaA413b929936A05aFBf8B4CD9dd5';
+
+// const OLD_CONTRACT_WITHOUT_TRANSFER_ON_MINT=0xD98CaDD05850484b3F0B13B9B04f3e184EA2B997
