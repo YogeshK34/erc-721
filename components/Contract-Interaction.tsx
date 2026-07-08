@@ -9,6 +9,7 @@ import { Spinner } from "./ui/spinner";
 import { Label } from "./ui/label";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Switch } from "./ui/switch";
 
 export const ContractInteraction = () => {
     const [mintTo, setMintTo] = useState<string>('');
@@ -29,36 +30,65 @@ export const ContractInteraction = () => {
     const [fetchOwnerForToken, setFetchOwnerForToken] = useState<string>('');
     const [owner, setOwner] = useState<string>('');
 
-    useEffect(() => {
-        const checkExistingWallet = async () => {
-            try {
-                if (typeof window === 'undefined' || !window.ethereum) return toast.error('Metamask not installed!');
-                setWalletFetching(true);
+    const [safeTransferLoading, setSafeTransferLoading] = useState<boolean>(false);
+    const [safeTransferFromAddress, setSafeTransferFromAddress] = useState<string>('');
+    const [safeTransferToAddress, setSafeTransferToAddress] = useState<string>('');
+    const [safeTransferTokenId, setSafeTransferTokenId] = useState<string>('');
 
-                const fetchAccounts = await window.ethereum.request({
-                    method: 'eth_accounts'
-                }) as string[];
-                if (fetchAccounts.length > 0) setAccount(fetchAccounts[0]);
+    const [transferLoading, setTransferLoading] = useState<boolean>(false);
+    const [transferFromAddress, setTransferFromAddress] = useState<string>('');
+    const [transferToAddress, setTransferToAddress] = useState<string>('');
+    const [transferTokenId, setTransferTokenId] = useState<string>('');
 
-                const fetchChain = await window.ethereum.request({
-                    method: 'eth_chainId'
-                }) as string;
-                if (fetchChain) setChainId(fetchChain);
+    const [approveLoading, setApproveLoading] = useState<boolean>(false);
+    const [approveAddress, setApproveAddress] = useState<string>('');
+    const [approveToken, setApproveToken] = useState<string>('');
 
-            } catch (error) {
-                console.error(error);
-                return toast.error('Failed to load wallet!', { position: 'top-center' });
+    const [approvalForAllLoading, setApprovalForAllLoading] = useState<boolean>(false);
+    const [approvalForAllAddress, setApprovForAllAddress] = useState<string>('');
+    const [isApproved, setIsApproved] = useState<boolean>(false);
 
-            } finally {
-                setWalletFetching(false);
-            }
+    const [getApprovedLoading, setGetApprovedLoading] = useState<boolean>(false);
+    const [approvedAddress, setApprovedAddress] = useState<string>('');
+    const [checkApprovalForToken, setCheckApprovalForToken] = useState<string>('');
+
+    const [isApprovedForAllLoading, setIsApprovedForAllLoading] = useState<boolean>(false);
+    const [approvedForAllOwner, setApprovedForAllOwner] = useState<string>('');
+    const [approvedForAllOperator, setApprovedForAllOperator] = useState<string>('');
+    const [resultApproveForAll, setResultApprovedForAll] = useState<boolean | null>(null);
+
+
+
+    const checkExistingWallet = async () => {
+        try {
+            if (typeof window === 'undefined' || !window.ethereum) return toast.error('Metamask not installed!', { position: 'top-center' });
+            setWalletFetching(true);
+
+            const fetchAccounts = await window.ethereum.request({
+                method: 'eth_accounts'
+            }) as string[];
+            if (fetchAccounts.length > 0) setAccount(fetchAccounts[0]);
+
+            const fetchChain = await window.ethereum.request({
+                method: 'eth_chainId'
+            }) as string;
+            if (fetchChain) setChainId(fetchChain);
+
+        } catch (error) {
+            console.error(error);
+            return toast.error('Failed to load wallet!', { position: 'top-center' });
+
+        } finally {
+            setWalletFetching(false);
         }
+    };
 
+    useEffect(() => {
         checkExistingWallet();
 
         const handleAccountChanged = async (accounts: string[]) => {
             try {
-                if (accounts.length > 0) setAccount(accounts[0]);
+                if (accounts.length === 0) { setAccount('') } else { setAccount(accounts[0]) };
             } catch (error) {
                 console.error(error);
                 return toast.error('Failed to load new account!', { position: 'top-center' });
@@ -67,7 +97,7 @@ export const ContractInteraction = () => {
 
         const handleChainChanged = async (chainId: string) => {
             try {
-                if (chainId) setChainId(chainId);
+                if (!chainId) { setChainId('') } else { setChainId(chainId) };
             } catch (error) {
                 console.error(error);
                 return toast.error('Failed to load ChainId!', { position: 'top-center' })
@@ -85,7 +115,7 @@ export const ContractInteraction = () => {
 
     const connectWallet = async () => {
         try {
-            if (typeof window === 'undefined' || !window.ethereum) return toast.error('Metamask not installed!');
+            if (typeof window === 'undefined' || !window.ethereum) return toast.error('Metamask not installed!', { position: 'top-center' });
             setConnectingWallet(true);
 
             const fetchAccounts = await window.ethereum.request({
@@ -102,7 +132,7 @@ export const ContractInteraction = () => {
             return toast.success('Wallet connected!', { position: 'top-center' });
         } catch (error) {
             console.error(error);
-            return toast.error('Failed to connect wallet!');
+            return toast.error('Failed to connect wallet!', { position: 'top-center' });
         } finally {
             setConnectingWallet(false);
         }
@@ -134,28 +164,50 @@ export const ContractInteraction = () => {
             if (!ethers.isAddress(mintTo)) return toast.error('Invalid address!', { position: 'top-center' })
             setMintLoading(true);
             const contract = await getSignerContract();
+            if (!contract) return;
 
-            const tx = await contract?.mint(mintTo);
+            const tx = await contract.mint(mintTo);
             const receipt = await tx.wait();
 
-            const parseLogs = await receipt.logs.map((log: any) => {
+            const parseLogs = receipt.logs.map((log: any) => {
                 try {
-                    return contract?.interface.parseLog(log);
-                } catch (error) {
-                    return toast.error(`error`);
+                    return contract.interface.parseLog(log);
+                } catch (error: any) {
+
+                    const message =
+                        error.reason ??
+                        error.revert?.args?.[0] ??
+                        error.shortMessage ??
+                        error.message ??
+                        'Failed to parse event logs';
+
+                    return toast.error(message, { position: 'top-center' });
                 }
             });
-            const transferLogs = await parseLogs.find((parsed: any) => parsed?.name === 'Transfer');
+            const transferLogs = parseLogs.find((parsed: any) => parsed?.name === 'Transfer');
             if (transferLogs) {
                 const tokenId = transferLogs.args[2].toString();
                 setTokenId(tokenId);
+                setMintTo('');
 
                 return toast.success(`Mint successful! Minted token ${tokenId}!`, { position: 'top-center' });
             }
 
-        } catch (error) {
-            console.error(error);
-            return
+        } catch (error: any) {
+
+            if (error.code === 'ACTION_REJECTED') {
+                return toast.error('User denied transaction', { position: 'top-center' })
+            };
+
+            // create the error message 
+            const message =
+                error.reason ??
+                error.revert?.args?.[0] ??
+                error.shortMessage ??
+                error.message ??
+                'Transaction failed!';
+
+            return toast.error(message, { position: 'top-center' });
         }
         finally {
             setMintLoading(false);
@@ -169,7 +221,8 @@ export const ContractInteraction = () => {
             const contract = await getProviderContract();
 
             const fetchBalance = await contract?.balanceOf(checkBalanceFor);
-            if (!fetchBalance) setBalance(fetchBalance);
+            if (fetchBalance === null || fetchBalance === undefined) { return toast.error('Failed to fetch balance!') } else { setBalance(fetchBalance.toString()) };
+            setBalanceAddress('');
             return;
 
         } catch (error) {
@@ -190,6 +243,8 @@ export const ContractInteraction = () => {
             const fetchOwner = await contract.ownerOf(tokenId);
             if (fetchOwner === ethers.ZeroAddress) return toast.info('Token is non-existant!', { position: 'top-center' });
             setOwner(fetchOwner);
+            setFetchOwnerForToken('');
+            return;
 
         } catch (error) {
             console.error(error);
@@ -199,18 +254,289 @@ export const ContractInteraction = () => {
         };
     };
 
+    const safeTransferFrom = async (from: string, to: string, tokenId: string) => {
+        try {
+            if (!ethers.isAddress(from)) return toast.error('Invalid from address!', { position: 'top-center' });
+            if (!ethers.isAddress(to)) return toast.error('Invalid to address!', { position: 'top-center' })
+            setSafeTransferLoading(true);
+
+            const contract = await getSignerContract();
+            const tx = await contract?.safeTransferFrom(from, to, tokenId);
+            const receipt = await tx.wait();
+
+            const parseLogs = receipt.logs.map((log: any) => {
+                try {
+                    return contract?.interface.parseLog(log);
+                } catch (error) {
+                    console.error(error);
+                    return toast.error('Failed to parse tx logs!', { position: 'top-center' })
+                }
+            })
+            const transferLogs = parseLogs.find((parsed: any) => parsed?.name === 'Transfer');
+            if (transferLogs) {
+                toast.success('Transfer succeded!', { position: 'top-center' });
+
+                setSafeTransferFromAddress('');
+                setSafeTransferToAddress('');
+                setSafeTransferTokenId('');
+                return;
+            } else {
+                return toast.error('Failed to transfer!', { position: 'top-center' })
+            }
+
+        } catch (error: any) {
+            console.error(error);
+
+            if (error.code === 'ACTION_REJECTED') {
+                return toast.error('User denied transaction', { position: 'top-center' })
+            };
+
+            // create the error message 
+            const message =
+                error.reason ??
+                error.revert?.args?.[0] ??
+                error.shortMessage ??
+                error.message ??
+                'Transaction failed!';
+
+            return toast.error(message, { position: 'top-center' });
+        } finally {
+            setSafeTransferLoading(false);
+        }
+    }
+
+    const transferFrom = async (from: string, to: string, tokenId: string) => {
+        try {
+            if (!ethers.isAddress(from)) return toast.error('Invalid from address!', { position: 'top-center' });
+            if (!ethers.isAddress(to)) return toast.error('Invalid to address!', { position: 'top-center' })
+            setTransferLoading(true);
+
+            const contract = await getSignerContract();
+            const tx = await contract?.transferFrom(from, to, tokenId);
+            const receipt = await tx.wait();
+
+            const parseLogs = receipt.logs.map((log: any) => {
+                try {
+                    return contract?.interface.parseLog(log);
+                } catch (error) {
+                    console.error(error);
+                    return toast.error('Failed to parse tx logs!', { position: 'top-center' })
+                }
+            })
+            const transferLogs = parseLogs.find((parsed: any) => parsed?.name === 'Transfer');
+            if (transferLogs) {
+                toast.success('Transfer succeded!', { position: 'top-center' });
+
+                setTransferFromAddress('');
+                setTransferToAddress('');
+                setTransferTokenId('');
+                return;
+            } else {
+                return toast.error('Failed to transfer!', { position: 'top-center' })
+            }
+
+        } catch (error: any) {
+            console.error(error);
+
+            if (error.code === 'ACTION_REJECTED') {
+                return toast.error('User denied transaction', { position: 'top-center' })
+            };
+
+            // create the error message 
+            const message =
+                error.reason ??
+                error.revert?.args?.[0] ??
+                error.shortMessage ??
+                error.message ??
+                'Transaction failed!';
+
+            return toast.error(message, { position: 'top-center' });
+        } finally {
+            setTransferLoading(false);
+        }
+    };
+
+    const approve = async (address: string, tokenId: string) => {
+        try {
+            if (!ethers.isAddress(address)) return toast.error('Invalid address', { position: 'top-center' })
+            setApproveLoading(true);
+
+            const contract = await getSignerContract();
+            const tx = await contract?.approve(address, tokenId);
+
+            const receipt = await tx.wait();
+            const parseLogs = receipt.logs.map((log: any) => {
+                try {
+                    return contract?.interface.parseLog(log);
+                } catch (error: any) {
+
+                    const message =
+                        error.reason ??
+                        error.revert?.args?.[0] ??
+                        error.shortMessage ??
+                        error.message ??
+                        'Failed to parse event logs';
+
+                    return toast.error(message, { position: 'top-center' });
+                }
+            });
+
+            const approveLogs = parseLogs.find((parsed: any) => parsed?.name === 'Approval');
+            if (approveLogs) {
+                toast.success('Approval succeded!', { position: 'top-center' });
+
+                setApproveAddress('');
+                setApproveToken('');
+                return;
+            };
+
+        } catch (error: any) {
+            console.error(error);
+
+            if (error.code === 'ACTION_REJECTED') {
+                return toast.error('User denied transaction', { position: 'top-center' })
+            };
+
+            const message =
+                error.reason ??
+                error.revert?.args?.[0] ??
+                error.shortMessage ??
+                error.message ??
+                'Failed to approve';
+
+            return toast.error(message, { position: 'top-center' })
+        } finally {
+            setApproveLoading(false);
+        };
+    };
+
+
+    const setApprovalForAll = async (address: string, isApproved: boolean) => {
+        try {
+            if (!ethers.isAddress(address)) return toast.error('Invalid address', { position: 'top-center' })
+            setApprovalForAllLoading(true);
+
+            const contract = await getSignerContract();
+            const tx = await contract?.setApprovalForAll(address, isApproved);
+
+            const receipt = await tx.wait();
+            const parseLogs = receipt.logs.map((log: any) => {
+                try {
+                    return contract?.interface.parseLog(log);
+                } catch (error: any) {
+
+                    const message =
+                        error.reason ??
+                        error.revert?.args?.[0] ??
+                        error.shortMessage ??
+                        error.message ??
+                        'Failed to parse event logs';
+
+                    return toast.error(message, { position: 'top-center' });
+                }
+            });
+
+            const approveLogs = parseLogs.find((parsed: any) => parsed?.name === 'ApprovalForAll');
+            if (approveLogs) {
+                toast.success('Approval succeded!', { position: 'top-center' });
+
+                setApprovForAllAddress('');
+                setIsApproved(false);
+                return;
+            };
+
+        } catch (error: any) {
+            console.error(error);
+
+            if (error.code === 'ACTION_REJECTED') {
+                return toast.error('User denied transaction', { position: 'top-center' })
+            };
+
+            const message =
+                error.reason ??
+                error.revert?.args?.[0] ??
+                error.shortMessage ??
+                error.message ??
+                'Failed to approve';
+
+            return toast.error(message, { position: 'top-center' })
+        } finally {
+            setApprovalForAllLoading(false);
+        };
+    };
+
+    const getApproved = async (tokenId: string) => {
+        try {
+            setGetApprovedLoading(true);
+            const contract = await getProviderContract();
+            const approvedAddress = await contract?.getApproved(tokenId);
+
+            if (!approvedAddress || approvedAddress === ethers.ZeroAddress) return toast.info('Approval not set!', { position: 'top-center' });
+            setApprovedAddress(approvedAddress);
+            setCheckApprovalForToken('');
+
+        } catch (error: any) {
+
+            if (error.code === 'ACTION_REJECTED') {
+                return toast.error('User denied transaction', { position: 'top-center' })
+            };
+
+            const message =
+                error.reason ??
+                error.revert?.args?.[0] ??
+                error.shortMessage ??
+                error.message ??
+                'Failed to check approval';
+
+            return toast.error(message, { position: 'top-center' })
+
+        } finally {
+            setGetApprovedLoading(false);
+        }
+    }
+
+    const isApprovedForAll = async (owner: string, operator: string) => {
+        try {
+            if (!ethers.isAddress(owner)) return toast.error('Invalid owner address!', { position: 'top-center' });
+            if (!ethers.isAddress(operator)) return toast.error('Invalid operator address!', { position: 'top-center' });
+
+            setIsApprovedForAllLoading(true);
+            const contract = await getProviderContract();
+            const isApprovedForAll = await contract?.isApprovedForAll(owner, operator);
+            setResultApprovedForAll(isApprovedForAll);
+            return
+
+        } catch (error: any) {
+
+            if (error.code === 'ACTION_REJECTED') {
+                return toast.error('User denied transaction', { position: 'top-center' })
+            };
+
+            const message =
+                error.reason ??
+                error.revert?.args?.[0] ??
+                error.shortMessage ??
+                error.message ??
+                'Failed to check approval';
+
+            return toast.error(message, { position: 'top-center' })
+
+        } finally {
+            setIsApprovedForAllLoading(false);
+        }
+    }
+
     return (
         <div>
-            {(mintLoading || walletFetching || connectingWallet || balanceLoading || ownerLoading) && <Spinner />}
-
-            {account ? (
-                <>
-                    <Label>Connected Account: {account}</Label>
-                    <Label>Chain: {chainId}</Label>
-                </>
-            ) : (
-                <Button onClick={connectWallet}>Connect Wallet</Button>
-            )}
+            {walletFetching ? <><Spinner /> <Label> Connecting...</Label></> :
+                account ? (
+                    <>
+                        <Label>Connected Account: {account}</Label>
+                        <Label>Chain: {chainId}</Label>
+                    </>
+                ) : (
+                    <Button onClick={connectWallet}>{connectingWallet ? <><Spinner /><Label>Connecting...</Label></> : 'Connect  Wallet'}</Button>
+                )}
 
             <Label>Mint NFTs</Label>
             <Input
@@ -221,7 +547,7 @@ export const ContractInteraction = () => {
                 placeholder="Enter address to mint tokens to"
                 required
             />
-            <Button onClick={() => mint(mintTo)} disabled={mintLoading}>Mint NFT</Button>
+            <Button onClick={() => mint(mintTo)} disabled={mintLoading}>{mintLoading ? <><Spinner /> <Label>Minting NFTs...</Label></> : 'Mint NFT'}</Button>
             {tokenId && <Label>Minted token&apos;s Id: {tokenId}</Label>}
 
             <Label>Fetch number of Tokens</Label>
@@ -233,8 +559,8 @@ export const ContractInteraction = () => {
                 placeholder="Enter address to fetch no of tokens held"
                 required
             />
-            <Button onClick={() => getBalance(balanceAddress)} disabled={balanceLoading}>Check Balance</Button>
-            {balance && <Label>No of tokens for address: {account} are: {balance}</Label>}
+            <Button onClick={() => getBalance(balanceAddress)} disabled={balanceLoading}>{balanceLoading ? <><Spinner /> <Label>Fetching balance...</Label></> : 'Check Balance'}</Button>
+            {balance && <Label>No of tokens for address: {balanceAddress || 'queried address'} are {balance}</Label>}
 
             <Label>Check owner of a token</Label>
             <Input
@@ -245,9 +571,156 @@ export const ContractInteraction = () => {
                 placeholder="Enter token to fetch owner"
                 required
             />
-            <Button onClick={() => getOwner(fetchOwnerForToken)} disabled={ownerLoading}>Fetch Owner</Button>
+            <Button onClick={() => getOwner(fetchOwnerForToken)} disabled={ownerLoading}>{ownerLoading ? <> <Spinner /> <Label>Checking Ownership...</Label></> : 'Check Owner'}</Button>
             {owner && <Label>Owner of token is: {owner}</Label>}
 
+            <Label>SafeTransferFrom: checks if recipient can handle NFT (recommended)</Label>
+            <Input
+                type='text'
+                value={safeTransferFromAddress}
+                onChange={(e) => setSafeTransferFromAddress(e.target.value)}
+                disabled={safeTransferLoading}
+                placeholder="Enter from address"
+                required
+            />
+
+            <Input
+                type='text'
+                value={safeTransferToAddress}
+                onChange={(e) => setSafeTransferToAddress(e.target.value)}
+                disabled={safeTransferLoading}
+                placeholder="Enter to address"
+                required
+            />
+
+            <Input
+                type='text'
+                value={safeTransferTokenId}
+                onChange={(e) => setSafeTransferTokenId(e.target.value)}
+                disabled={safeTransferLoading}
+                placeholder="Enter tokenId"
+                required
+            />
+
+            <Button onClick={() => safeTransferFrom(safeTransferFromAddress, safeTransferToAddress, safeTransferTokenId)}
+                disabled={safeTransferLoading}>{safeTransferLoading ? <><Spinner /> <Label>Transferring...</Label></> : 'Transfer'}
+            </Button>
+
+            <Label>TransferFrom: directly transfers, no check (not-recommended)</Label>
+            <Input
+                type='text'
+                value={transferFromAddress}
+                onChange={(e) => setTransferFromAddress(e.target.value)}
+                disabled={transferLoading}
+                placeholder="Enter from address"
+                required
+            />
+
+            <Input
+                type='text'
+                value={transferToAddress}
+                onChange={(e) => setTransferToAddress(e.target.value)}
+                disabled={transferLoading}
+                placeholder="Enter to address"
+                required
+            />
+
+            <Input
+                type='text'
+                value={transferTokenId}
+                onChange={(e) => setTransferTokenId(e.target.value)}
+                disabled={transferLoading}
+                placeholder="Enter tokenId"
+                required
+            />
+
+            <Button onClick={() => transferFrom(transferFromAddress, transferToAddress, transferTokenId)}
+                disabled={transferLoading}>{transferLoading ? <><Spinner /> <Label>Transferring...</Label></> : 'Transfer'}
+            </Button>
+
+            <Label>Approve: grant permission to move tokens on your behalf</Label>
+            <Input
+                type='text'
+                value={approveAddress}
+                onChange={(e) => setApproveAddress(e.target.value)}
+                disabled={approveLoading}
+                placeholder="Enter address to grant permission"
+                required
+            />
+
+            <Input
+                type='text'
+                value={approveToken}
+                onChange={(e) => setApproveToken(e.target.value)}
+                disabled={approveLoading}
+                placeholder="Enter tokenId"
+                required
+            />
+
+            <Button onClick={() => approve(approveAddress, approveToken)}
+                disabled={approveLoading}>{approveLoading ? <><Spinner /> <Label>Approving...</Label></> : 'Approve'}
+            </Button>
+
+            <Label>ApprovalForAll: grant permission to move all tokens on your behalf</Label>
+            <Input
+                type='text'
+                value={approvalForAllAddress}
+                onChange={(e) => setApprovForAllAddress(e.target.value)}
+                disabled={approvalForAllLoading}
+                placeholder="Enter address to grant permission"
+                required
+            />
+
+            <Switch
+                checked={isApproved}
+                onCheckedChange={setIsApproved}
+                disabled={approvalForAllLoading}
+            />
+
+            <Button onClick={() => setApprovalForAll(approvalForAllAddress, isApproved)}
+                disabled={approvalForAllLoading}>{approvalForAllLoading ? <><Spinner /> <Label>Approving...</Label></> : 'Approve'}
+            </Button>
+
+            <Label>Check approval for a token</Label>
+            <Input
+                type='text'
+                value={checkApprovalForToken}
+                onChange={(e) => setCheckApprovalForToken(e.target.value)}
+                placeholder="Enter token id"
+                disabled={getApprovedLoading}
+                required
+            />
+
+            <Button onClick={() => getApproved(checkApprovalForToken)} disabled={getApprovedLoading}>{getApprovedLoading ? <><Spinner /> <Label>Checking Approval....</Label></> : 'Check Approval'}</Button>
+            {approvedAddress && <Label>Approved Address: {approvedAddress}</Label>}
+
+            <Label>Check an address approval</Label>
+            <Input
+                type='text'
+                value={approvedForAllOwner}
+                onChange={(e) => setApprovedForAllOwner(e.target.value)}
+                placeholder="Enter owner's address"
+                disabled={isApprovedForAllLoading}
+                required
+            />
+
+            <Input
+                type='text'
+                value={approvedForAllOperator}
+                onChange={(e) => setApprovedForAllOperator(e.target.value)}
+                placeholder="Enter operator's address"
+                disabled={isApprovedForAllLoading}
+                required
+            />
+
+            <Button onClick={() => isApprovedForAll(approvedForAllOwner, approvedForAllOperator)} disabled={isApprovedForAllLoading}>{isApprovedForAllLoading ? <><Spinner /> <Label>Checking Approval....</Label></> : 'Check Approval'}</Button>
+            {resultApproveForAll !== null && (
+                <Label>
+                    {approvedForAllOperator}
+                    {resultApproveForAll ? " is " : " is not "}
+                    approved for {approvedForAllOwner}
+                </Label>
+            )}
         </div>
     )
 }
