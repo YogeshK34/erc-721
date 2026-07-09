@@ -1,37 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ERC-721 NFT Console
+
+A dark-mode NFT dashboard built with **Next.js**, **ethers.js**, and **The Graph** — lets you mint, transfer, approve, and monitor ERC-721 tokens in real time.
+
+---
+
+## Stack
+
+| Layer | Tech |
+|---|---|
+| Framework | Next.js 14 (App Router) |
+| Styling | Tailwind CSS + shadcn/ui |
+| Blockchain | ethers.js v6 · MetaMask |
+| Indexer | The Graph (subgraph) |
+| Notifications | sonner |
+
+---
+
+## Features
+
+- **Mint** — mint a new NFT to any address
+- **Balance** — check how many NFTs an address owns
+- **Token Query** — look up owner and approved address by token ID
+- **Transfer** — `transferFrom` and `safeTransferFrom` in one card
+- **Approve** — approve an address to move a specific token
+- **Set Approval For All** — grant or revoke operator access with a Grant / Revoke toggle
+- **Is Approved For All** — query operator approval status
+- **NFT Info** — fetch contract `name()` and `symbol()`
+- **Live Event Feed** — real-time Transfer, Approval, and ApprovalForAll events via The Graph, with auto-polling after every write
+
+---
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) and connect MetaMask.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+> The app auto-detects your connected wallet and chain on load.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+├── app/                  # Next.js App Router pages
+├── components/
+│   ├── Contract-Interaction.tsx   # Main UI — all ERC-721 interactions
+│   └── ui/               # shadcn/ui primitives
+├── config.ts             # ABI + contract address
+├── erc-721/              # The Graph subgraph (separate project)
+│   ├── src/              # Subgraph mappings
+│   └── schema.graphql    # Indexed entity schema
+└── tsconfig.json         # erc-721/ excluded to avoid AS/TS conflicts
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Environment
 
-## Deploy on Vercel
+No `.env` file required — the contract address and subgraph URL are hardcoded in `config.ts` and `Contract-Interaction.tsx` respectively. Update them there if you redeploy.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Constant | File | Value |
+|---|---|---|
+| `CONTRACT_ADDRESS` | `config.ts` | Sepolia deployment |
+| `SUBGRAPH_URL` | `Contract-Interaction.tsx` | The Graph Studio endpoint |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# erc-721
+---
+
+## Deploy
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new)
+
+```bash
+pnpm build   # verify before pushing
+```
